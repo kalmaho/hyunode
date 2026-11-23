@@ -52,8 +52,14 @@ def read_saved(target=TARGET):
 
 
 def validate_key(key):
-    if not key.startswith('sk-') or not key.isascii() or any(ord(c) < 33 or ord(c) > 126 for c in key):
-        raise ValueError('API 키 형식이 올바르지 않습니다. 붙여넣기 제어문자가 포함되었거나 비밀키 전체가 아닙니다. python configure_ai.py로 다시 입력하세요.')
+    if not key:
+        raise ValueError('API 키가 비어 있습니다. 생성한 비밀키 전체를 붙여넣으세요.')
+    if any(ord(c) < 32 or ord(c) == 127 for c in key):
+        raise ValueError('입력에 탭·줄바꿈·단축키 제어문자가 포함되어 있습니다. 별도 입력 창에서 다시 붙여넣으세요.')
+    if not key.isascii():
+        raise ValueError('입력에 한글 또는 영문 이외의 문자가 포함되어 있습니다. 영문 입력 상태로 전환하거나 비밀키를 복사해 붙여넣으세요.')
+    if any(c.isspace() for c in key):
+        raise ValueError('입력에 공백이 포함되어 있습니다. 비밀키 전체만 붙여넣으세요.')
     if any(c in key for c in ('"', "'")):
         raise ValueError('API 키에 따옴표를 포함하지 마세요. 비밀키 전체만 붙여넣으세요.')
 

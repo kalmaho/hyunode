@@ -9,17 +9,22 @@ import credentials
 def read_key():
     if sys.platform == 'win32':
         import tkinter as tk
-        from tkinter import simpledialog
+        from tkinter import simpledialog, messagebox
         root = tk.Tk()
         root.withdraw()
         root.attributes('-topmost', True)
         try:
-            value = simpledialog.askstring('Hyunode · API 키 설정',
-                'OpenAI 비밀키 전체를 한 번 붙여넣으세요.\n입력한 글자 수만큼 별표가 표시됩니다.',
-                show='*', parent=root)
-            if value is None:
-                raise KeyboardInterrupt
-            return value
+            while True:
+                value = simpledialog.askstring('Hyunode · API 키 설정',
+                    'OpenAI 비밀키 전체를 한 번 붙여넣으세요.\n입력한 글자 수만큼 별표가 표시됩니다.',
+                    show='*', parent=root)
+                if value is None:
+                    raise KeyboardInterrupt
+                try:
+                    credentials.validate_key(value.strip())
+                    return value
+                except ValueError as exc:
+                    messagebox.showerror('API 키 입력 확인', str(exc), parent=root)
         finally:
             root.destroy()
     with warnings.catch_warnings():

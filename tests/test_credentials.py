@@ -73,11 +73,22 @@ class CredentialTests(unittest.TestCase):
             self.assertEqual(credentials.read_saved(), {})
 
     def test_rejects_paste_control_characters_before_storage(self):
-        for key in ('\x16sk-test-key', 'sk-test\x16key', 'key-name', '"sk-test-key"'):
+        for key in ('\x16sk-test-key', 'sk-test\x16key', 'key with spaces', '"sk-test-key"', '한글키'):
             with self.subTest(key_type='malformed'), patch('credentials.api') as dll:
                 with self.assertRaises(ValueError):
                     credentials.save(key, 'test-model')
                 dll.assert_not_called()
+
+    def test_key_prefix_is_not_assumed(self):
+        credentials.validate_key('future-format-printable-token')
+
+    def test_format_errors_explain_reason_without_echoing_key(self):
+        for key, reason in [('', '비어'), ('private\x16secret', '제어문자'),
+                            ('private secret', '공백'), ('private한글secret', '한글')]:
+            with self.assertRaisesRegex(ValueError, reason) as raised:
+                credentials.validate_key(key)
+            if key:
+                self.assertNotIn(key, str(raised.exception))
 
     def test_credential_storage_error_does_not_leak_key(self):
         with patch('credentials.resolve', side_effect=OSError('private-error')):

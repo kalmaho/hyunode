@@ -250,7 +250,7 @@ class Handler(BaseHTTPRequestHandler):
             if self.path == '/api/ai/analyze':
                 preview = ai_preview(body.get('scan_id'))
                 if not preview['settings']['configured']:
-                    raise ValueError('서버에 OPENAI_API_KEY와 OPENAI_MODEL을 설정하고 재시작하세요.')
+                    raise ValueError('Windows는 python configure_ai.py로 API 키와 모델을 저장하세요. 다른 환경은 서버 환경변수를 설정하세요.')
                 if body.get('consent') is not True or body.get('digest') != preview['digest']:
                     raise ValueError('전송할 근거를 미리 확인하고 동의해주세요.')
                 with LOCK, db() as con:

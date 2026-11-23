@@ -11,6 +11,11 @@ from evidence import summarize
 
 
 class AIReviewTests(unittest.TestCase):
+    def setUp(self):
+        self.saved = patch('credentials.read_saved', return_value={})
+        self.saved.start()
+        self.addCleanup(self.saved.stop)
+
     def bundle(self):
         return ai_analysis.evidence_bundle({'status': 'completed', 'result': {
             'ports': [{'port': 8080, 'state': 'open'}], 'http_status': 200,

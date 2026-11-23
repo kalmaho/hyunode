@@ -1,12 +1,16 @@
 """Evidence-only OpenAI analysis. No agent tools or target network access."""
 import http.client
 import json
-import os
+import credentials
 
 
 def config():
-    return {'provider': 'OpenAI', 'configured': bool(os.getenv('OPENAI_API_KEY') and os.getenv('OPENAI_MODEL')),
-            'model': os.getenv('OPENAI_MODEL', ''), 'private_access': 'loopback_only'}
+    try:
+        values = credentials.resolve()
+    except (OSError, ValueError):
+        values = {'key': '', 'model': '', 'source': 'credential_error'}
+    return {'provider': 'OpenAI', 'configured': bool(values['key'] and values['model']),
+            'model': values['model'], 'source': values['source'], 'private_access': 'loopback_only'}
 
 
 def evidence_bundle(scan):
@@ -84,16 +88,16 @@ def validate_analysis(value, bundle):
 
 
 def analyze(bundle):
-    settings = config()
-    if not settings['configured']:
-        raise ValueError('서버에 OPENAI_API_KEY와 OPENAI_MODEL을 설정하고 재시작하세요.')
+    settings = credentials.resolve()
+    if not settings['key'] or not settings['model']:
+        raise ValueError('python configure_ai.py로 API를 설정하거나 서버 환경변수를 설정하세요.')
     payload = {'model': settings['model'], 'store': False, 'instructions': INSTRUCTIONS,
                'input': json.dumps(bundle, ensure_ascii=False), 'max_output_tokens': 6000,
                'text': {'format': {'type': 'json_schema', 'name': 'lab_assessment', 'strict': True, 'schema': SCHEMA}}}
     conn = http.client.HTTPSConnection('api.openai.com', timeout=60)
     try:
         conn.request('POST', '/v1/responses', json.dumps(payload).encode('utf-8'),
-                     {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + os.environ['OPENAI_API_KEY']})
+                     {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + settings['key']})
         response = conn.getresponse()
         raw = response.read(1_000_001)
         if response.status != 200:

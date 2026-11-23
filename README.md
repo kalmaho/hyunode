@@ -54,6 +54,32 @@ HYUNODE_ALLOWED_IPS=127.0.0.1,192.168.56.10 HYUNODE_ALLOWED_PORTS=3000,8000,8080
 
 OpenAI Responses API를 서버에서만 호출합니다. 이 채팅의 로그인이나 모델 연결을 재사용하지 않습니다. 본인의 OpenAI API 키와 API 계정에서 사용할 수 있는 Structured Outputs 지원 GPT 모델 ID가 필요합니다. 모델을 임의로 고정하지 않으며 `OPENAI_MODEL`로 명시해야 합니다.
 
+### Windows에서 한 번 저장하고 계속 사용하기 (추천)
+
+```powershell
+python configure_ai.py
+```
+
+대화형 터미널에서 API 키(화면 표시 없음)와 모델 ID를 입력합니다. 키와 모델은 **Windows 자격 증명 관리자**의 `Hyunode/OpenAI` 항목에 저장되며, 파일이나 Git 저장소에 쓰지 않습니다. 같은 컴퓨터의 같은 Windows 사용자로 로그인하면 터미널 종료·재부팅 후에도 유지됩니다. 이후에는 `python server.py`만 실행하면 됩니다. 이미 새 코드를 실행 중이면 설정을 다음 요청부터 읽으므로 새로고침하면 됩니다. 예전 서버 코드는 한 번 재시작하세요.
+
+환경변수 설정이 하나라도 있으면 환경변수 구성이 우선합니다(저장값과 섞지 않습니다). 저장된 설정을 사용하려면 현재 PowerShell에서 기존 값을 지우세요.
+
+```powershell
+Remove-Item Env:OPENAI_API_KEY -ErrorAction SilentlyContinue
+Remove-Item Env:OPENAI_MODEL -ErrorAction SilentlyContinue
+python server.py
+```
+
+설정을 교체하려면 `python configure_ai.py`를 다시 실행합니다. 저장된 키와 모델을 지우려면:
+
+```powershell
+python configure_ai.py --delete
+```
+
+자격 증명 저장은 같은 OS 사용자로 실행되는 모든 프로그램에 대한 격리가 아닙니다. 다른 Windows 계정이나 Linux 서버에는 이 설정이 전달되지 않습니다. 별도 서버에서는 해당 서버 계정의 비밀 저장소·서비스 설정을 사용하세요. Windows 저장 API 참고: [Microsoft Credential Manager](https://learn.microsoft.com/en-us/windows/win32/api/wincred/ns-wincred-credentialw).
+
+### 환경변수로 일시 설정하기
+
 PowerShell에서 키를 화면이나 명령 기록에 직접 적지 않고 입력하려면:
 
 ```powershell
@@ -73,7 +99,7 @@ export OPENAI_MODEL
 python server.py
 ```
 
-이미 실행 중인 서버는 종료한 뒤 환경변수가 설정된 터미널에서 다시 시작합니다. API 키는 브라우저·SQLite·GitHub에 저장하지 않습니다. SSH 터널을 통해서만 원격 접속하고 서버의 SSH 계정 접근도 본인으로 제한하세요. 루프백 제한은 같은 컴퓨터의 다른 OS 사용자까지 식별하는 로그인 시스템은 아닙니다.
+환경변수 방식은 이미 실행 중인 서버를 종료한 뒤 설정한 터미널에서 다시 시작합니다. API 키는 브라우저·SQLite·GitHub에 저장하지 않습니다. SSH 터널을 통해서만 원격 접속하고 서버의 SSH 계정 접근도 본인으로 제한하세요. 루프백 제한은 같은 컴퓨터의 다른 OS 사용자까지 식별하는 로그인 시스템은 아닙니다.
 
 1. 대상을 검사합니다. 새 검사는 루트 응답을 최대 64 KiB만 읽어 구조 정보로 변환합니다.
 2. **GPT 심층 분석 → 전송 근거 확인**에서 실제 전송할 JSON을 확인합니다.

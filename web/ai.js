@@ -9,7 +9,7 @@ function aiPanel() {
   return `<section class="panel"><div class="panel-head"><div><h2>GPT 심층 분석</h2><p class="panel-sub">관찰된 사실과 가설을 구분하는 근거 기반 리뷰</p></div>${badge('관리자 전용', 'blue')}</div>
     <div class="ai-intro"><div class="ai-symbol">✧</div><div><h3>근거를 연결하고, 다음 검사를 설계하세요.</h3><p>포트와 HTTP 구조를 함께 검토해 전제조건·오탐 가능성·개선 우선순위를 제안합니다. 실제 취약점 재현과 추가 요청은 자동 실행하지 않습니다.</p></div></div>
     <div class="ai-config"><span>OpenAI · ${cfg.configured ? esc(cfg.model) : '서버 설정 필요'}</span><span>로컬 접속 전용 · 하루 최대 20회 · 자동 재시도 없음</span></div>
-    ${!cfg.configured ? '<div class="inline-hint">서버 환경변수 <code>OPENAI_API_KEY</code>와 <code>OPENAI_MODEL</code>을 설정한 뒤 재시작하세요. API 키를 이 화면이나 GitHub에 입력하지 않습니다.</div>' : ''}
+    ${!cfg.configured ? '<div class="inline-hint">Windows는 <code>python configure_ai.py</code>로 API 키와 모델을 한 번 저장하면 됩니다. 다른 환경은 <code>OPENAI_API_KEY</code>와 <code>OPENAI_MODEL</code>을 설정하세요. API 키를 이 화면이나 GitHub에 입력하지 않습니다.</div>' : ''}
     ${scans.length ? scans.map(s => `<div class="report-row"><div><strong>${esc(s.name)} · 검사 #${s.id}</strong><p>${stamp(s.created)} · 근거 ${s.result.observations ? '구조 정보 포함' : '기존 기본 정보'} · 관찰 ${s.result.findings.length}건</p></div><button class="secondary" data-ai-preview="${s.id}" ${running ? 'disabled' : ''}>전송 근거 확인</button></div>`).join('') : empty('분석할 검사 결과가 없습니다', '실습 대상을 검사한 후 GPT 분석을 시작하세요.')}
     </section><section class="panel"><div class="panel-head"><h2>AI 분석 기록</h2><span class="panel-sub">실측 결과와 별도로 보관</span></div>${runs.length ? runs.map(r => {
       const a = r.result?.analysis;
@@ -55,7 +55,7 @@ document.addEventListener('click', async e => {
       $('#ai-preview').textContent = JSON.stringify(aiPreview.bundle, null, 2);
       $('#ai-consent').checked = false;
       $('#send-ai').disabled = true;
-      $('#ai-error').textContent = aiPreview.settings.configured ? '' : 'OpenAI API 키와 모델이 아직 서버에 설정되지 않았습니다.';
+      $('#ai-error').textContent = aiPreview.settings.configured ? '' : 'API 설정이 없습니다. Windows 터미널에서 python configure_ai.py를 실행하세요.';
       $('#ai-dialog').showModal();
     } catch (error) { toast(error.message); }
     finally { b.disabled = false; }

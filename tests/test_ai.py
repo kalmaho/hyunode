@@ -86,6 +86,16 @@ class AIReviewTests(unittest.TestCase):
                 ai_analysis.analyze(self.bundle())
             connection.assert_not_called()
 
+    def test_quota_and_rate_limits_are_distinguished_without_exposing_body(self):
+        for code, kind, expected in [('insufficient_quota', 'insufficient_quota', '잔액'),
+                                     ('rate_limit_exceeded', 'rate_limit_error', '속도'),
+                                     ('slow_down', 'rate_limit_error', '속도')]:
+            raw = json.dumps({'error': {'code': code, 'type': kind, 'message': 'PRIVATE_SECRET'}}).encode()
+            message = ai_analysis.api_error(429, raw)
+            self.assertIn(expected, message)
+            self.assertNotIn('PRIVATE_SECRET', message)
+        self.assertIn('일 수 있습니다', ai_analysis.api_error(429, b'not-json PRIVATE_SECRET'))
+
 
 if __name__ == '__main__':
     unittest.main()

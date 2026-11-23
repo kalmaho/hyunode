@@ -87,6 +87,27 @@ def validate_analysis(value, bundle):
     return value
 
 
+def api_error(status, raw):
+    # Upstream messages may contain secrets; inspect codes but never echo bodies.
+    try:
+        error = json.loads(raw).get('error', {})
+        code = error.get('code')
+        kind = error.get('type')
+    except (ValueError, TypeError, AttributeError):
+        code, kind = None, None
+    if status == 401:
+        return 'OpenAI 인증 실패 (HTTP 401). API 비밀키와 프로젝트 인증 설정을 확인하세요.'
+    if status == 429:
+        if code in ('insufficient_quota', 'credit_balance_exhausted', 'billing_hard_limit_reached', 'organization_usage_limit_exceeded') or kind == 'insufficient_quota':
+            return 'OpenAI API 사용 가능 잔액 또는 사용 한도가 부족합니다 (HTTP 429). API 플랫폼의 Billing·Usage·Limits를 확인하세요.'
+        if code in ('rate_limit_exceeded', 'slow_down') or kind == 'rate_limit_error':
+            return 'OpenAI API 요청 속도 또는 토큰 속도 제한입니다 (HTTP 429). 잠시 후 다시 실행하거나 프로젝트 Limits를 확인하세요.'
+        return 'OpenAI API 제한에 도달했습니다 (HTTP 429). 잔액·사용 한도 또는 요청 속도 제한일 수 있습니다. API 플랫폼의 Billing·Usage·Limits를 확인하세요.'
+    if status in (403, 404):
+        return 'OpenAI 모델 접근이 거부되었거나 모델을 찾을 수 없습니다 (HTTP {}). API 모델 ID와 프로젝트 권한을 확인하세요.'.format(status)
+    return 'OpenAI API 요청 실패 (HTTP {}). API 설정 또는 제공업체 상태를 확인하세요.'.format(status)
+
+
 def analyze(bundle):
     settings = credentials.resolve()
     if not settings['key'] or not settings['model']:
@@ -102,7 +123,7 @@ def analyze(bundle):
         response = conn.getresponse()
         raw = response.read(1_000_001)
         if response.status != 200:
-            raise ValueError('OpenAI API 요청 실패 (HTTP {}). 키·모델 권한·사용 한도를 확인하세요.'.format(response.status))
+            raise ValueError(api_error(response.status, raw))
         if len(raw) > 1_000_000:
             raise ValueError('AI 응답 크기 제한을 초과했습니다.')
         data = json.loads(raw)

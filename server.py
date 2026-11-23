@@ -14,6 +14,7 @@ import socket
 import sqlite3
 import subprocess
 import threading
+import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
 import ai_analysis
@@ -304,7 +305,26 @@ class DashboardServer(ThreadingHTTPServer):
             self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
         super().server_bind()
 
+def main():
+    # Claim the port before touching persisted job state.
+    try:
+        app = DashboardServer(('127.0.0.1', 8787), Handler)
+    except OSError as exc:
+        if exc.errno in (48, 98, 10048) or getattr(exc, 'winerror', None) == 10048:
+            print('Port 8787 is already in use. If Hyunode is running, open http://127.0.0.1:8787', file=sys.stderr)
+            print('Stop the existing server before restarting. No scan records were changed.', file=sys.stderr)
+            return 1
+        raise
+    try:
+        init()
+        print('Hyunode → http://127.0.0.1:8787', flush=True)
+        app.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        app.server_close()
+    return 0
+
+
 if __name__ == '__main__':
-    init()
-    print('Hyunode → http://127.0.0.1:8787', flush=True)
-    DashboardServer(('127.0.0.1', 8787), Handler).serve_forever()
+    sys.exit(main())

@@ -1,4 +1,6 @@
 import http.client
+import contextlib
+import io
 import importlib.util
 import json
 import sys
@@ -12,6 +14,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import server
 
 class SecurityTests(unittest.TestCase):
+    def test_busy_port_does_not_reset_existing_jobs(self):
+        with patch.object(server, 'DashboardServer', side_effect=OSError(10048, 'address in use')), patch.object(server, 'init') as initialize, contextlib.redirect_stderr(io.StringIO()) as error:
+            self.assertEqual(server.main(), 1)
+            initialize.assert_not_called()
+            self.assertIn('8787', error.getvalue())
+
     def test_dashboard_prevents_duplicate_listener(self):
         app = server.DashboardServer(('127.0.0.1', 0), server.Handler)
         try:

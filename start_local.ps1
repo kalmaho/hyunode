@@ -1,5 +1,15 @@
 $ErrorActionPreference = 'Stop'
 Set-Location -LiteralPath $PSScriptRoot
+try {
+    $existingDashboard = Invoke-RestMethod 'http://127.0.0.1:8787/api/state' -TimeoutSec 8
+    if ($null -ne $existingDashboard.config.allowed_ips -and $null -ne $existingDashboard.targets -and $null -ne $existingDashboard.scans) {
+        Write-Host 'Hyunode is already running: http://127.0.0.1:8787'
+        Write-Host 'Open the dashboard in your browser. No additional server was started.'
+        return
+    }
+} catch {
+    # A closed port is normal on first startup. Python handles a busy port safely.
+}
 $ollamaCommand = Get-Command ollama -ErrorAction SilentlyContinue
 $installedCli = Join-Path $env:LOCALAPPDATA 'Programs/Ollama/ollama.exe'
 $ollamaBinary = if ($ollamaCommand) { $ollamaCommand.Source } elseif (Test-Path -LiteralPath $installedCli) { $installedCli } else { Join-Path $PSScriptRoot 'data/ollama/ollama.exe' }

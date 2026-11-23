@@ -10,6 +10,7 @@ function aiPanel() {
   return `<section class="panel"><div class="panel-head"><div><h2>AI 심층 분석</h2><p class="panel-sub">관찰된 사실과 가설을 구분하는 근거 기반 리뷰</p></div>${badge('관리자 전용', 'blue')}</div>
     <div class="ai-intro"><div class="ai-symbol">✧</div><div><h3>근거를 연결하고, 다음 검사를 설계하세요.</h3><p>포트와 HTTP 구조를 함께 검토해 전제조건·오탐 가능성·개선 우선순위를 제안합니다. 실제 취약점 재현과 추가 요청은 자동 실행하지 않습니다.</p></div></div>
     <div class="ai-config"><span>${local ? '로컬 Ollama' : 'OpenAI'} · ${cfg.configured ? esc(cfg.model) : '서버 설정 필요'}</span><span>로컬 접속 전용 · 하루 최대 20회 · 자동 재시도 없음</span></div>
+    ${local ? '<div class="inline-hint">소형 로컬 모델은 HTTP 설정 요약·개선 우선순위만 작성합니다. 관찰 사실과 근거 ID는 검사 엔진에서 가져오며, 취약점 가설 생성은 지원하지 않습니다. 권고 내용은 수동 검토가 필요합니다.</div>' : ''}
     ${!cfg.configured && local ? '<div class="inline-hint">Ollama와 로컬 모델을 실행하세요. 외부 API로 자동 전환하지 않습니다.</div>' : ''}
     ${!cfg.configured && !local ? '<div class="inline-hint">Windows는 <code>python configure_ai.py</code>로 API 키와 모델을 한 번 저장하면 됩니다. 다른 환경은 <code>OPENAI_API_KEY</code>와 <code>OPENAI_MODEL</code>을 설정하세요. API 키를 이 화면이나 GitHub에 입력하지 않습니다.</div>' : ''}
     ${scans.length ? scans.map(s => `<div class="report-row"><div><strong>${esc(s.name)} · 검사 #${s.id}</strong><p>${stamp(s.created)} · 근거 ${s.result.observations ? '구조 정보 포함' : '기존 기본 정보'} · 관찰 ${s.result.findings.length}건</p></div><button class="secondary" data-ai-preview="${s.id}" ${running ? 'disabled' : ''}>전송 근거 확인</button></div>`).join('') : empty('분석할 검사 결과가 없습니다', '실습 대상을 검사한 후 AI 분석을 시작하세요.')}

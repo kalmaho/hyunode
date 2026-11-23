@@ -73,6 +73,8 @@ python configure_local_ai.py --model qwen3.5:0.8b
 
 8GB RAM 환경에서는 작은 모델부터 시작하세요. 모델 파일 외에 OS·애플리케이션·추론 메모리가 필요하며 대형 GPT와 같은 진단 품질을 기대할 수는 없습니다. 최대 5분 타임아웃, 분석 후 모델 언로드, 동시 분석 1개로 설정했습니다. 출력 구조와 근거 ID 검증이 실패하면 실패로 표시합니다. 실제 확인되지 않은 취약점을 확정하지 않습니다.
 
+소형 로컬 모델의 분석 범위는 HTTP 보안 설정 요약·개선 우선순위·범위 한계 설명으로 제한합니다. 로컬 입력에서 TCP 관찰을 제외하고 취약점 가설 생성은 지원하지 않습니다. 관찰 사실과 근거 ID는 AI가 생성하지 않고 실제 검사 엔진의 헤더 누락 결과에서 구성합니다. 권고 내용의 정확성을 보장하는 검증은 아니므로 최종 판단은 수동으로 합니다. 실제 취약점 탐색·재현을 대신하지 않습니다.
+
 공식 참고: [Ollama Windows](https://docs.ollama.com/windows), [로컬 Chat API](https://docs.ollama.com/api/chat), [Qwen 3.5 모델](https://ollama.com/library/qwen3.5).
 
 ### OpenAI API 사용

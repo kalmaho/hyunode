@@ -27,8 +27,8 @@ class LocalAITests(unittest.TestCase):
                 local_ai.check_model('cloud-alias')
 
     def test_local_output_validated_and_tools_not_granted(self):
-        bundle = {'evidence': [{'id': 'E1'}]}
-        review = {'summary': '검토', 'observed_facts': [{'statement': '관찰', 'evidence_ids': ['E1']}], 'hypotheses': [], 'priorities': [], 'coverage_gaps': ['제한된 입력']}
+        bundle = {'evidence': [{'id': 'E1', 'kind': 'missing_header', 'header': 'content-security-policy'}]}
+        review = {'summary': '검토', 'priorities': [], 'coverage_gaps': ['제한된 입력']}
         reply = {'done': True, 'done_reason': 'stop', 'message': {'content': json.dumps(review)}, 'prompt_eval_count': 30, 'eval_count': 40}
         with patch('local_ai.check_model'), patch('local_ai.request', return_value=reply) as transport:
             result = local_ai.analyze('model', bundle, ai_analysis.SCHEMA, ai_analysis.INSTRUCTIONS, ai_analysis.validate_analysis)
@@ -36,10 +36,20 @@ class LocalAITests(unittest.TestCase):
         self.assertFalse(payload['stream'])
         self.assertNotIn('tools', payload)
         self.assertEqual(result['usage']['total_tokens'], 70)
-        self.assertEqual(result['analysis'], review)
+        self.assertEqual(result['analysis']['summary'], review['summary'])
+        self.assertEqual(result['analysis']['observed_facts'][0]['evidence_ids'], ['E1'])
+        self.assertEqual(result['analysis']['hypotheses'], [])
 
     def test_invented_local_evidence_not_accepted(self):
         review = {'summary': '검토', 'observed_facts': [{'statement': '추정', 'evidence_ids': ['E999']}], 'hypotheses': [], 'priorities': [], 'coverage_gaps': []}
         with patch('local_ai.check_model'), patch('local_ai.request', return_value={'done': True, 'message': {'content': json.dumps(review)}}):
             with self.assertRaisesRegex(ValueError, '검증'):
                 local_ai.analyze('model', {'evidence': [{'id': 'E1'}]}, ai_analysis.SCHEMA, '', ai_analysis.validate_analysis)
+
+    def test_port_only_hypothesis_is_rejected(self):
+        hypothesis = {key: 'test' for key in ('title', 'prerequisites', 'possible_impact', 'false_positive_risk', 'manual_verification', 'remediation')}
+        hypothesis.update({'confidence': 'low', 'evidence_ids': ['E1']})
+        review = {'summary': 'test', 'observed_facts': [], 'hypotheses': [hypothesis], 'priorities': [], 'coverage_gaps': []}
+        with patch('local_ai.check_model'), patch('local_ai.request', return_value={'done': True, 'message': {'content': json.dumps(review)}}):
+            with self.assertRaises(ValueError):
+                local_ai.analyze('model', {'evidence': [{'id': 'E1', 'kind': 'tcp'}]}, ai_analysis.SCHEMA, '', ai_analysis.validate_analysis)

@@ -184,8 +184,12 @@ def ai_preview(scan_id):
     item = dict(row)
     item['result'] = json.loads(item['result']) if item['result'] else None
     bundle = ai_analysis.evidence_bundle(item)
+    settings = ai_analysis.config()
+    if settings.get('source') == 'local_ollama':
+        bundle['evidence'] = [e for e in bundle['evidence'] if e['kind'] != 'tcp']
+        bundle['limitations'].append('Small local model: HTTP configuration review only; port observations excluded')
     digest = hashlib.sha256(json.dumps(bundle, sort_keys=True).encode()).hexdigest()
-    return {'bundle': bundle, 'digest': digest, 'settings': ai_analysis.config()}
+    return {'bundle': bundle, 'digest': digest, 'settings': settings}
 
 
 def run_ai(run_id, bundle):

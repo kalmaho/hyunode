@@ -250,6 +250,8 @@ class Handler(BaseHTTPRequestHandler):
             if self.path == '/api/ai/analyze':
                 preview = ai_preview(body.get('scan_id'))
                 if not preview['settings']['configured']:
+                    if preview['settings'].get('source') == 'local_ollama':
+                        raise ValueError('Ollama와 설정한 로컬 모델을 실행하세요. OpenAI API는 호출하지 않습니다.')
                     raise ValueError('Windows는 python configure_ai.py로 API 키와 모델을 저장하세요. 다른 환경은 서버 환경변수를 설정하세요.')
                 if body.get('consent') is not True or body.get('digest') != preview['digest']:
                     raise ValueError('전송할 근거를 미리 확인하고 동의해주세요.')
@@ -289,7 +291,16 @@ class Handler(BaseHTTPRequestHandler):
         except (ValueError, TypeError, sqlite3.IntegrityError) as exc:
             return self.reply(400, {'error': '이미 등록된 대상입니다.' if isinstance(exc, sqlite3.IntegrityError) else str(exc)})
 
+
+class DashboardServer(ThreadingHTTPServer):
+    allow_reuse_address = False
+
+    def server_bind(self):
+        if os.name == 'nt':
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
+
 if __name__ == '__main__':
     init()
     print('Hyunode → http://127.0.0.1:8787', flush=True)
-    ThreadingHTTPServer(('127.0.0.1', 8787), Handler).serve_forever()
+    DashboardServer(('127.0.0.1', 8787), Handler).serve_forever()

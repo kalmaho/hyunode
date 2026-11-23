@@ -12,6 +12,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import server
 
 class SecurityTests(unittest.TestCase):
+    def test_dashboard_prevents_duplicate_listener(self):
+        app = server.DashboardServer(('127.0.0.1', 0), server.Handler)
+        try:
+            with self.assertRaises(OSError):
+                server.DashboardServer(('127.0.0.1', app.server_port), server.Handler)
+        finally:
+            app.server_close()
+
     def test_target_scope(self):
         with patch.object(server, 'ALLOWED', {'127.0.0.1'}), patch.object(server, 'PORTS', {8080}):
             self.assertEqual(server.validate_url('http://127.0.0.1:8080'), 'http://127.0.0.1:8080')

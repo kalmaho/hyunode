@@ -52,6 +52,31 @@ HYUNODE_ALLOWED_IPS=127.0.0.1,192.168.56.10 HYUNODE_ALLOWED_PORTS=3000,8000,8080
 
 ## 관리자 전용 GPT 심층 분석
 
+### 로컬 AI 사용 (Ollama)
+
+OpenAI 결제 없이 이 PC에서 모델을 실행할 수 있습니다. 공식 Ollama와 `qwen3.5:0.8b` 모델을 설치한 뒤 다음 명령으로 선택합니다.
+
+```powershell
+ollama pull qwen3.5:0.8b
+python configure_local_ai.py --model qwen3.5:0.8b
+```
+
+이 PC에는 `data/ollama/`에 CPU용 Ollama를 배치하고 모델은 `data/models/`에 보관합니다. 이후 실행:
+
+```powershell
+.\start_local.ps1
+```
+
+실행 스크립트는 Ollama가 꺼져 있으면 루프백에서 시작하고 대시보드를 실행합니다. 이미 대시보드가 실행 중이면 중복 실행하지 마세요. PC 종료 후에는 다시 실행해야 하며 Windows 로그인 자동 시작은 아직 등록하지 않았습니다.
+
+선택은 `data/ai_provider.json`에 보관됩니다. 로컬 모드에서는 저장된 OpenAI 키를 읽지 않고 외부 API에 자동 폴백하지 않습니다. Ollama Cloud 모델도 거부합니다. Ollama는 `127.0.0.1:11434`에만 바인딩하며 시작 스크립트는 `OLLAMA_NO_CLOUD=1`을 지정합니다. 모델 다운로드에는 인터넷을 사용하지만 진단 분석은 로컬에서 수행합니다.
+
+8GB RAM 환경에서는 작은 모델부터 시작하세요. 모델 파일 외에 OS·애플리케이션·추론 메모리가 필요하며 대형 GPT와 같은 진단 품질을 기대할 수는 없습니다. 최대 5분 타임아웃, 분석 후 모델 언로드, 동시 분석 1개로 설정했습니다. 출력 구조와 근거 ID 검증이 실패하면 실패로 표시합니다. 실제 확인되지 않은 취약점을 확정하지 않습니다.
+
+공식 참고: [Ollama Windows](https://docs.ollama.com/windows), [로컬 Chat API](https://docs.ollama.com/api/chat), [Qwen 3.5 모델](https://ollama.com/library/qwen3.5).
+
+### OpenAI API 사용
+
 OpenAI Responses API를 서버에서만 호출합니다. 이 채팅의 로그인이나 모델 연결을 재사용하지 않습니다. 본인의 OpenAI API 키와 API 계정에서 사용할 수 있는 Structured Outputs 지원 GPT 모델 ID가 필요합니다. 모델을 임의로 고정하지 않으며 `OPENAI_MODEL`로 명시해야 합니다.
 
 ### Windows에서 한 번 저장하고 계속 사용하기 (추천)

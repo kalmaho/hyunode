@@ -12,6 +12,9 @@ from evidence import summarize
 
 class AIReviewTests(unittest.TestCase):
     def setUp(self):
+        self.local = patch('local_ai.selected', return_value=None)
+        self.local.start()
+        self.addCleanup(self.local.stop)
         self.saved = patch('credentials.read_saved', return_value={})
         self.saved.start()
         self.addCleanup(self.saved.stop)

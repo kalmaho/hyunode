@@ -2,10 +2,14 @@
 import http.client
 import json
 import credentials
+import local_ai
 
 
 def config():
     try:
+        model = local_ai.selected()
+        if model:
+            return local_ai.config(model)
         values = credentials.resolve()
     except (OSError, ValueError):
         values = {'key': '', 'model': '', 'source': 'credential_error'}
@@ -109,6 +113,9 @@ def api_error(status, raw):
 
 
 def analyze(bundle):
+    model = local_ai.selected()
+    if model:
+        return local_ai.analyze(model, bundle, SCHEMA, INSTRUCTIONS, validate_analysis)
     settings = credentials.resolve()
     if not settings['key'] or not settings['model']:
         raise ValueError('python configure_ai.py로 API를 설정하거나 서버 환경변수를 설정하세요.')

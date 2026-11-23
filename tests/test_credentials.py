@@ -12,6 +12,11 @@ import ai_analysis
 
 
 class CredentialTests(unittest.TestCase):
+    def setUp(self):
+        local = patch('local_ai.selected', return_value=None)
+        local.start()
+        self.addCleanup(local.stop)
+
     def test_environment_override_does_not_read_stored_key(self):
         with patch.dict(os.environ, {'OPENAI_API_KEY': 'temporary-key', 'OPENAI_MODEL': 'temporary-model'}, clear=True), patch('credentials.read_saved') as saved:
             value = credentials.resolve()

@@ -16,6 +16,8 @@ import subprocess
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
+import ai_analysis
+from evidence import summarize
 
 ROOT = Path(__file__).resolve().parent
 DATA = ROOT / 'data'
@@ -24,6 +26,7 @@ LOCK = threading.Lock()
 ALLOWED = {x.strip() for x in os.getenv('HYUNODE_ALLOWED_IPS', '127.0.0.1').split(',')}
 PORTS = {int(x) for x in os.getenv('HYUNODE_ALLOWED_PORTS', '3000,8000,8080,8443').split(',')}
 POOL = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+AI_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=1)
 
 def now():
     return datetime.datetime.now(datetime.timezone.utc).isoformat()
@@ -43,8 +46,10 @@ def init():
     with db() as con:
         con.executescript('''CREATE TABLE IF NOT EXISTS targets(id INTEGER PRIMARY KEY, name TEXT, url TEXT UNIQUE, created TEXT);
         CREATE TABLE IF NOT EXISTS scans(id INTEGER PRIMARY KEY, target_id INTEGER, status TEXT, created TEXT, result TEXT);
+        CREATE TABLE IF NOT EXISTS ai_runs(id INTEGER PRIMARY KEY, scan_id INTEGER, status TEXT, created TEXT, result TEXT);
         ''')
         con.execute("UPDATE scans SET status='interrupted' WHERE status IN ('queued','running')")
+        con.execute("UPDATE ai_runs SET status='interrupted' WHERE status IN ('queued','running')")
 
 def validate_url(raw):
     u = urlsplit(raw)
@@ -69,15 +74,19 @@ def probe(ip, port):
     except OSError:
         return {'port': port, 'state': 'closed_or_filtered'}
 
-def inspect_headers(url):
+def inspect_headers(url, observations=None):
     u = urlsplit(url)
     cls = http.client.HTTPSConnection if u.scheme == 'https' else http.client.HTTPConnection
     conn = cls(u.hostname, u.port, timeout=5)
     try:
         conn.request('GET', '/', headers={'User-Agent': 'Hyunode-Lab/1.0', 'Connection': 'close'})
         response = conn.getresponse()
-        headers = {k.lower(): v for k, v in response.getheaders()}
-        # Redirects are deliberately never followed. Response bodies are not stored.
+        response_headers = response.getheaders()
+        headers = {k.lower(): v for k, v in response_headers}
+        # Read at most 64 KiB; store structural counts only. Never follow redirects.
+        if observations is not None:
+            body = response.read(65537)
+            observations.update(summarize(response_headers, body[:65536], len(body) > 65536))
         checks = [('content-security-policy', 'Content-Security-Policy 미설정', 'medium', '콘텐츠 출처를 제한하는 CSP 정책을 서비스에 맞게 설정하세요.'),
                   ('x-content-type-options', 'X-Content-Type-Options 미설정', 'low', 'nosniff 응답 헤더를 설정하세요.')]
         if u.scheme == 'https':
@@ -136,7 +145,8 @@ def scan(scan_id, url):
         ip = urlsplit(url).hostname
         result['ports'] = [probe(ip, port) for port in sorted(PORTS)]
         try:
-            result['findings'], result['http_status'] = inspect_headers(url)
+            result['observations'] = {}
+            result['findings'], result['http_status'] = inspect_headers(url, result['observations'])
         except (OSError, http.client.HTTPException) as exc:
             result['notes'].append('HTTP 점검 실패: ' + str(exc))
         try:
@@ -157,10 +167,41 @@ def state():
     with db() as con:
         targets = [dict(r) for r in con.execute('SELECT * FROM targets ORDER BY id DESC')]
         scans = [dict(r) for r in con.execute('SELECT scans.*, targets.name, targets.url FROM scans JOIN targets ON targets.id=scans.target_id ORDER BY scans.id DESC LIMIT 100')]
+        ai_runs = [dict(r) for r in con.execute('SELECT * FROM ai_runs ORDER BY id DESC LIMIT 100')]
     for item in scans:
         item['result'] = json.loads(item['result']) if item['result'] else None
-    return {'targets': targets, 'scans': scans, 'config': {'allowed_ips': sorted(ALLOWED), 'ports': sorted(PORTS),
-            'nuclei_installed': bool(shutil.which('nuclei')), 'ai': False, 'external_asm': False}}
+    for item in ai_runs:
+        item['result'] = json.loads(item['result']) if item['result'] else None
+    return {'targets': targets, 'scans': scans, 'ai_runs': ai_runs, 'config': {'allowed_ips': sorted(ALLOWED), 'ports': sorted(PORTS),
+            'nuclei_installed': bool(shutil.which('nuclei')), 'ai': ai_analysis.config(), 'external_asm': False}}
+
+
+def ai_preview(scan_id):
+    with db() as con:
+        row = con.execute('SELECT * FROM scans WHERE id=?', (scan_id,)).fetchone()
+    if not row:
+        raise ValueError('검사 결과가 없습니다.')
+    item = dict(row)
+    item['result'] = json.loads(item['result']) if item['result'] else None
+    bundle = ai_analysis.evidence_bundle(item)
+    digest = hashlib.sha256(json.dumps(bundle, sort_keys=True).encode()).hexdigest()
+    return {'bundle': bundle, 'digest': digest, 'settings': ai_analysis.config()}
+
+
+def run_ai(run_id, bundle):
+    with db() as con:
+        con.execute("UPDATE ai_runs SET status='running' WHERE id=?", (run_id,))
+    try:
+        result = ai_analysis.analyze(bundle)
+        result['evidence'] = bundle
+        status = 'completed'
+    except Exception as exc:
+        # Do not expose upstream bodies, tokens, or arbitrary exception text.
+        result = {'error': str(exc) if isinstance(exc, ValueError) and not isinstance(exc, json.JSONDecodeError) else 'AI 응답 처리에 실패했습니다.'}
+        status = 'failed'
+    result['finished'] = now()
+    with db() as con:
+        con.execute('UPDATE ai_runs SET status=?,result=? WHERE id=?', (status, json.dumps(result, ensure_ascii=False), run_id))
 
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *_):
@@ -188,7 +229,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(200, state())
         if path == '/api/session':
             return self.reply(200, {'token': TOKEN})
-        files = {'/': ('index.html', 'text/html'), '/app.js': ('app.js', 'text/javascript'), '/style.css': ('style.css', 'text/css')}
+        files = {'/': ('index.html', 'text/html'), '/app.js': ('app.js', 'text/javascript'), '/style.css': ('style.css', 'text/css'), '/ai.js': ('ai.js', 'text/javascript'), '/ai.css': ('ai.css', 'text/css')}
         if path in files:
             name, mime = files[path]
             return self.reply(200, (ROOT / 'web' / name).read_text(encoding='utf-8'), mime + '; charset=utf-8')
@@ -202,6 +243,27 @@ class Handler(BaseHTTPRequestHandler):
             if not 0 < size <= 8192:
                 raise ValueError('잘못된 요청 크기')
             body = json.loads(self.rfile.read(size))
+            if not isinstance(body, dict):
+                raise ValueError('JSON 객체가 필요합니다.')
+            if self.path == '/api/ai/preview':
+                return self.reply(200, ai_preview(body.get('scan_id')))
+            if self.path == '/api/ai/analyze':
+                preview = ai_preview(body.get('scan_id'))
+                if not preview['settings']['configured']:
+                    raise ValueError('서버에 OPENAI_API_KEY와 OPENAI_MODEL을 설정하고 재시작하세요.')
+                if body.get('consent') is not True or body.get('digest') != preview['digest']:
+                    raise ValueError('전송할 근거를 미리 확인하고 동의해주세요.')
+                with LOCK, db() as con:
+                    if con.execute("SELECT id FROM ai_runs WHERE status IN ('queued','running')").fetchone():
+                        raise ValueError('AI 분석이 이미 진행 중입니다.')
+                    count = con.execute('SELECT COUNT(*) FROM ai_runs WHERE created>=?', (now()[:10],)).fetchone()[0]
+                    if count >= 20:
+                        raise ValueError('하루 AI 분석 20회 한도에 도달했습니다 (UTC 기준).')
+                    cursor = con.execute("INSERT INTO ai_runs(scan_id,status,created) VALUES(?,'queued',?)", (body['scan_id'], now()))
+                    run_id = cursor.lastrowid
+                    con.commit()
+                    AI_POOL.submit(run_ai, run_id, preview['bundle'])
+                return self.reply(202, {'id': run_id})
             if self.path == '/api/targets':
                 url = validate_url(body.get('url', ''))
                 name = body.get('name', '').strip()

@@ -28,7 +28,7 @@ python lab/server.py
 - 검사별 Markdown 보고서 다운로드, 실제 엔진 실행 상태 표시
 - 반응형 레이아웃, 키보드 포커스, 한국어 UI
 
-AI 검증, 외부 ASM, 소유권 인증, 수동 검토 상태 편집, 수정 전후 자동 비교는 아직 구현하지 않았습니다. AI와 ASM UI에 이 상태를 표시합니다. 서버가 종료되면 진행 중이던 검사는 다음 실행 시 중단됨으로 표시됩니다. 실행 시간은 UTC로 저장하고 화면에서는 브라우저 시간대로 표시합니다.
+GPT 근거 분석을 지원합니다. 외부 ASM, 소유권 인증, 수동 검토 상태 편집, 수정 전후 자동 비교는 아직 구현하지 않았습니다. AI는 추가 검사 요청을 실행하지 않으며 취약점 확정 기능이 아닙니다. 서버가 종료되면 진행 중이던 검사는 다음 실행 시 중단됨으로 표시됩니다. 실행 시간은 UTC로 저장하고 화면에서는 브라우저 시간대로 표시합니다.
 
 ## 검사 범위 설정
 
@@ -49,6 +49,43 @@ HYUNODE_ALLOWED_IPS=127.0.0.1,192.168.56.10 HYUNODE_ALLOWED_PORTS=3000,8000,8080
 ```
 
 원격 서버에서는 SSH 로컬 포워딩으로 접속하세요: `ssh -L 8787:127.0.0.1:8787 user@server`. 대시보드는 127.0.0.1에만 바인딩합니다. 단일 사용자용 개발 버전으로 사용자 인증·TLS·다중 사용자 격리가 없으므로 공개 리버스 프록시로 노출하지 마세요. 변경 API는 런타임 토큰을 요구하고 Host를 검증합니다.
+
+## 관리자 전용 GPT 심층 분석
+
+OpenAI Responses API를 서버에서만 호출합니다. 이 채팅의 로그인이나 모델 연결을 재사용하지 않습니다. 본인의 OpenAI API 키와 API 계정에서 사용할 수 있는 Structured Outputs 지원 GPT 모델 ID가 필요합니다. 모델을 임의로 고정하지 않으며 `OPENAI_MODEL`로 명시해야 합니다.
+
+PowerShell에서 키를 화면이나 명령 기록에 직접 적지 않고 입력하려면:
+
+```powershell
+$hyunodeKey = Read-Host 'OpenAI API key' -AsSecureString
+$env:OPENAI_API_KEY = [System.Net.NetworkCredential]::new('', $hyunodeKey).Password
+$env:OPENAI_MODEL = Read-Host '사용할 GPT API 모델 ID'
+python server.py
+```
+
+Linux:
+
+```bash
+read -rsp 'OpenAI API key: ' OPENAI_API_KEY; echo
+export OPENAI_API_KEY
+read -rp 'GPT API 모델 ID: ' OPENAI_MODEL
+export OPENAI_MODEL
+python server.py
+```
+
+이미 실행 중인 서버는 종료한 뒤 환경변수가 설정된 터미널에서 다시 시작합니다. API 키는 브라우저·SQLite·GitHub에 저장하지 않습니다. SSH 터널을 통해서만 원격 접속하고 서버의 SSH 계정 접근도 본인으로 제한하세요. 루프백 제한은 같은 컴퓨터의 다른 OS 사용자까지 식별하는 로그인 시스템은 아닙니다.
+
+1. 대상을 검사합니다. 새 검사는 루트 응답을 최대 64 KiB만 읽어 구조 정보로 변환합니다.
+2. **GPT 심층 분석 → 전송 근거 확인**에서 실제 전송할 JSON을 확인합니다.
+3. 전송에 동의하고 분석을 실행합니다. 근거가 바뀌면 다시 확인해야 합니다.
+4. 관찰된 사실, 근거 ID, 가설의 전제조건·예상 영향·오탐 가능성·수동 확인 절차·개선안·범위 한계를 확인합니다.
+5. 별도의 AI 보고서를 다운로드합니다. 관찰 결과와 AI 추정은 합쳐서 확정하지 않습니다.
+
+전송되는 데이터는 허용 포트의 연결 결과, HTTP 상태, 일부 헤더의 **존재 여부**, 쿠키의 **보안 속성 여부**, 폼·비밀번호 필드·업로드 필드·스크립트·링크의 **개수**, Nuclei 심각도별 매치 개수입니다. 대상 이름·IP·URL, HTML 원문·입력값, 쿠키 값, 응답 헤더 원문, Nuclei 텍스트, 오류 원문은 보내지 않습니다. 기존 검사에는 구조 정보가 없어 재검사하면 더 많은 근거가 생깁니다. 단일 비인증 페이지의 구조만으로 SQLi·XSS·인가 취약점을 확인할 수는 없습니다.
+
+OpenAI 요청은 `store: false`, 출력 최대 6,000토큰, 60초 연결 타임아웃으로 설정합니다. `store: false`는 무보관 전체 보장을 의미하지 않습니다. 별도 API 요금과 제공업체 데이터 정책을 확인하세요. 동시 AI 분석 1개·UTC 기준 하루 최대 20회(실패 시도 포함)로 제한하고 자동 재시도하지 않습니다. 출력이 중단되거나 근거 ID·구조 검증이 실패하면 분석을 완료로 표시하지 않습니다. 모델에 도구 권한은 없으며 출력은 텍스트로만 표시합니다.
+
+공식 문서: [API 시작하기](https://developers.openai.com/api/docs/quickstart), [Responses API](https://developers.openai.com/api/reference/resources/responses/methods/create), [Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs).
 
 ## Nuclei 연결
 
@@ -74,6 +111,7 @@ HYUNODE_ALLOWED_IPS=127.0.0.1,192.168.56.10 HYUNODE_ALLOWED_PORTS=3000,8000,8080
 ```sh
 python -m unittest discover -s tests -v
 node --check web/app.js
+node --check web/ai.js
 ```
 
 테스트는 외부 대상을 접속하지 않습니다. 허용 범위 검증, API 접근 제한, 리다이렉트 차단, 임시 로컬 서버에 대한 실제 검사 및 결과 저장을 확인합니다.
@@ -82,6 +120,8 @@ node --check web/app.js
 
 ```text
 server.py             로컬 API · 검사 엔진 · SQLite
+ai_analysis.py        OpenAI Responses API · 구조 검증
+evidence.py           민감한 원문을 제외한 구조 정보 추출
 web/                  대시보드 UI
 lab/server.py         루프백 전용 HTTP 실습 서버
 nuclei-templates/     관리자 승인 템플릿 목록

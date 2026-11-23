@@ -59,7 +59,7 @@ class AIReviewTests(unittest.TestCase):
             'usage': {'input_tokens': 10, 'output_tokens': 20, 'total_tokens': 30}}).encode()
         conn = MagicMock()
         conn.getresponse.return_value = response
-        with patch.dict(os.environ, {'OPENAI_API_KEY': 'test-key', 'OPENAI_MODEL': 'test-model'}), patch('ai_analysis.http.client.HTTPSConnection', return_value=conn):
+        with patch.dict(os.environ, {'OPENAI_API_KEY': 'sk-test-key', 'OPENAI_MODEL': 'test-model'}), patch('ai_analysis.http.client.HTTPSConnection', return_value=conn):
             result = ai_analysis.analyze(self.bundle())
         args = conn.request.call_args.args
         payload = json.loads(args[2])
@@ -75,7 +75,7 @@ class AIReviewTests(unittest.TestCase):
         response.read.return_value = b'upstream PRIVATE_SECRET'
         conn = MagicMock()
         conn.getresponse.return_value = response
-        with patch.dict(os.environ, {'OPENAI_API_KEY': 'test-key', 'OPENAI_MODEL': 'test-model'}), patch('ai_analysis.http.client.HTTPSConnection', return_value=conn):
+        with patch.dict(os.environ, {'OPENAI_API_KEY': 'sk-test-key', 'OPENAI_MODEL': 'test-model'}), patch('ai_analysis.http.client.HTTPSConnection', return_value=conn):
             with self.assertRaises(ValueError) as raised:
                 ai_analysis.analyze(self.bundle())
         self.assertNotIn('PRIVATE_SECRET', str(raised.exception))

@@ -91,6 +91,7 @@ def analyze(bundle):
     settings = credentials.resolve()
     if not settings['key'] or not settings['model']:
         raise ValueError('python configure_ai.py로 API를 설정하거나 서버 환경변수를 설정하세요.')
+    credentials.validate_key(settings['key'])
     payload = {'model': settings['model'], 'store': False, 'instructions': INSTRUCTIONS,
                'input': json.dumps(bundle, ensure_ascii=False), 'max_output_tokens': 6000,
                'text': {'format': {'type': 'json_schema', 'name': 'lab_assessment', 'strict': True, 'schema': SCHEMA}}}

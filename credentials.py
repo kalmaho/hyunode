@@ -51,10 +51,18 @@ def read_saved(target=TARGET):
         dll.CredFree(pointer)
 
 
+def validate_key(key):
+    if not key.startswith('sk-') or not key.isascii() or any(ord(c) < 33 or ord(c) > 126 for c in key):
+        raise ValueError('API 키 형식이 올바르지 않습니다. 붙여넣기 제어문자가 포함되었거나 비밀키 전체가 아닙니다. python configure_ai.py로 다시 입력하세요.')
+    if any(c in key for c in ('"', "'")):
+        raise ValueError('API 키에 따옴표를 포함하지 마세요. 비밀키 전체만 붙여넣으세요.')
+
+
 def save(key, model, target=TARGET):
     key, model = key.strip(), model.strip()
     if not key or not model or any(c.isspace() for c in key + model):
         raise ValueError('공백 없는 API 키와 모델 ID를 입력하세요.')
+    validate_key(key)
     raw = json.dumps({'key': key, 'model': model}).encode('utf-8')
     if len(raw) > 2560:
         raise ValueError('입력 길이 제한을 초과했습니다.')

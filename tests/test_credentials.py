@@ -44,10 +44,10 @@ class CredentialTests(unittest.TestCase):
             return True
         dll.CredWriteW.side_effect = write
         with patch('credentials.api', return_value=dll):
-            credentials.save('test-key', 'test-model')
+            credentials.save('sk-test-key', 'test-model')
         self.assertEqual(captured['persist'], 2)
         self.assertEqual(captured['target'], credentials.TARGET)
-        self.assertEqual(json.loads(captured['blob']), {'key': 'test-key', 'model': 'test-model'})
+        self.assertEqual(json.loads(captured['blob']), {'key': 'sk-test-key', 'model': 'test-model'})
         self.assertEqual(ctypes.string_at(captured['pointer'], captured['size']), b'\x00' * captured['size'])
 
     def test_native_read_frees_os_buffer(self):
@@ -71,6 +71,13 @@ class CredentialTests(unittest.TestCase):
         dll.CredReadW.return_value = False
         with patch('credentials.os.name', 'nt'), patch('credentials.api', return_value=dll), patch('credentials.ctypes.get_last_error', return_value=1168, create=True):
             self.assertEqual(credentials.read_saved(), {})
+
+    def test_rejects_paste_control_characters_before_storage(self):
+        for key in ('\x16sk-test-key', 'sk-test\x16key', 'key-name', '"sk-test-key"'):
+            with self.subTest(key_type='malformed'), patch('credentials.api') as dll:
+                with self.assertRaises(ValueError):
+                    credentials.save(key, 'test-model')
+                dll.assert_not_called()
 
     def test_credential_storage_error_does_not_leak_key(self):
         with patch('credentials.resolve', side_effect=OSError('private-error')):
